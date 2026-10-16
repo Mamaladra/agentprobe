@@ -1,0 +1,21 @@
+"""{name}: MCP server scaffolded by MCPForge. Run: python server.py (stdio)."""
+from mcp_runtime import Server
+
+srv = Server("{name}", "0.1.0")
+
+def obj(props, required):
+    # strict schemas: AgentProbe flags permissive ones
+    return {{"type": "object", "properties": props, "required": required, "additionalProperties": False}}
+
+@srv.tool("Say hello to someone by name.", obj({{"name": {{"type": "string", "maxLength": 64}}}}, ["name"]))
+def hello(name):
+    return f"Hello, {{name[:64]}}!"
+
+@srv.tool("Add two integers.", obj({{"a": {{"type": "integer"}}, "b": {{"type": "integer"}}}}, ["a", "b"]))
+def add(a, b):
+    if not (isinstance(a, int) and isinstance(b, int)):
+        raise TypeError("integers only")
+    return a + b
+
+if __name__ == "__main__":
+    srv.run()

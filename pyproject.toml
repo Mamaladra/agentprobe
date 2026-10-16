@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentprobe"
+version = "0.3.0"
+description = "CI for AI agent security: open-core MCP server scanner (AgentProbe) + secure scaffolder (MCPForge)"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+# MIT/Apache/BSD only. pip-audit is run as an external tool (pipx run pip-audit), not a dependency,
+# because it pulls in certifi (MPL-2.0). Hypothesis (MPL-2.0) was replaced by a seeded stdlib fuzzer.
+dev = ["pytest>=7", "bandit>=1.7", "ruff>=0.4"]
+
+[project.scripts]
+agentprobe = "agentprobe.cli:agentprobe_main"
+mcpforge = "agentprobe.forge:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+agentprobe = ["templates/*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = [
+  "E501",   # line length — keep dense security tooling readable
+  "S101",   # assert in tests
+  "S603",   # subprocess with list argv (we never use shell=True for targets)
+  "S607",   # partial executable paths resolved via shutil.which
+  "S104",   # bind all interfaces — not applicable
+  "S108",   # /tmp/aphome is an in-bwrap path, not a host tempfile race
+  "S110",   # broad except in hostile-input paths is intentional
+  "S112",   # continue on malformed server frames is intentional
+  "B904",   # exception chaining noise in MCPError wrappers
+  "UP031",  # percent format fine for unicode escapes
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B", "E402"]
+"demo/*" = ["S", "B", "E402"]  # deliberately vulnerable / demo code
+
+[tool.bandit]
+skips = ["B108"]  # /tmp/aphome etc. are in-bwrap paths, not host tempfile races
+exclude_dirs = ["tests", "demo", "reports"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

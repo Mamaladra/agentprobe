@@ -1,0 +1,74 @@
+name: "AgentProbe MCP Security Scan"
+description: "CI for AI agent security: red-team your MCP server in a sandbox and fail the build on prompt injection, path traversal, root escape and secret leaks."
+author: "AgentProbe"
+branding:
+  icon: "shield"
+  color: "purple"
+inputs:
+  target:
+    description: "MCP server to scan: a stdio command (e.g. 'node dist/index.js') or an http(s) URL"
+    required: true
+  profile:
+    description: "Capability profile(s): auto, none, or comma list (filesystem,git,database,shell,http,fetch,browser,memory,secrets)"
+    required: false
+    default: "auto"
+  fail-on:
+    description: "Fail if any finding is at or above this severity (info|low|medium|high|critical)"
+    required: false
+    default: "high"
+  min-score:
+    description: "Fail if the score (0-100) is below this value"
+    required: false
+    default: "0"
+  sandbox:
+    description: "Sandbox for stdio targets: auto|bwrap|unshare|none"
+    required: false
+    default: "auto"
+  version:
+    description: "AgentProbe version or pip spec to install"
+    required: false
+    default: "agentprobe"
+outputs:
+  score:
+    description: "Security score 0-100"
+    value: ${{ steps.scan.outputs.score }}
+  grade:
+    description: "Letter grade A-F"
+    value: ${{ steps.scan.outputs.grade }}
+runs:
+  using: "composite"
+  steps:
+    - name: Install bubblewrap (sandbox)
+      shell: bash
+      run: |
+        if ! command -v bwrap >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap; fi
+        # Ubuntu 24.04 runners restrict unprivileged user namespaces via AppArmor
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 >/dev/null 2>&1 || true
+    - name: Install AgentProbe
+      shell: bash
+      env:
+        AP_VERSION: ${{ inputs.version }}
+      run: python3 -m pip install --quiet "$AP_VERSION"
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        AP_TARGET: ${{ inputs.target }}
+        AP_PROFILE: ${{ inputs.profile }}
+        AP_FAIL_ON: ${{ inputs.fail-on }}
+        AP_MIN_SCORE: ${{ inputs.min-score }}
+        AP_SANDBOX: ${{ inputs.sandbox }}
+      run: |
+        set +e
+        agentprobe scan "$AP_TARGET" --profile "$AP_PROFILE" --sandbox "$AP_SANDBOX" \
+          --fail-on "$AP_FAIL_ON" --min-score "$AP_MIN_SCORE" --json agentprobe.json --html agentprobe.html
+        code=$?
+        python3 -c "import json;r=json.load(open('agentprobe.json'));print(f\"score={r['score']}\");print(f\"grade={r['grade']}\")" >> "$GITHUB_OUTPUT"
+        python3 -c "import json;r=json.load(open('agentprobe.json'));c=r['counts'];print(f\"### AgentProbe: grade {r['grade']} ({r['score']}/100)\n\ncritical {c['critical']} · high {c['high']} · medium {c['medium']} · low {c['low']}\")" >> "$GITHUB_STEP_SUMMARY"
+        exit $code
+    - name: Upload report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: agentprobe-report
+        path: agentprobe.*

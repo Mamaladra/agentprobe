@@ -1,0 +1,2 @@
+skips: ['B108']
+exclude_dirs: ['tests', 'demo', 'reports', '.venv']
