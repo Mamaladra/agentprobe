@@ -62,12 +62,59 @@ def make_preexec(limits=None):
     return _pre
 
 
+_PROBE = {}
+
+
+def _works(argv):
+    import subprocess  # nosec B404 - fixed argv, no shell
+    try:
+        return subprocess.run(argv, capture_output=True, timeout=10, check=False).returncode == 0  # nosec B603
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def probe(mode):
+    """Actually try the isolation layer. A binary being present is not enough: Ubuntu 24.04's
+    AppArmor restricts unprivileged user namespaces, so bwrap/unshare exist but fail."""
+    if mode not in _PROBE:
+        if mode == "bwrap":
+            b = shutil.which("bwrap")
+            _PROBE[mode] = bool(b) and _works([b, "--ro-bind", "/", "/", "--unshare-user", "--unshare-pid",
+                                               "--unshare-net", "--tmpfs", "/home", "--", "true"])
+        elif mode == "unshare":
+            u = shutil.which("unshare")
+            _PROBE[mode] = bool(u) and _works([u, "-rmn", "--", "true"])
+        else:
+            _PROBE[mode] = mode == "none"
+    return _PROBE[mode]
+
+
 def detect():
-    if shutil.which("bwrap"):
-        return "bwrap"
-    if shutil.which("unshare"):
-        return "unshare"
+    for m in ("bwrap", "unshare"):
+        if probe(m):
+            return m
     return "none"
+
+
+def is_degraded(mode):
+    """True when the target runs without full bwrap filesystem isolation."""
+    return mode != "bwrap"
+
+
+def degraded_reason():
+    if not shutil.which("bwrap"):
+        return "bubblewrap (bwrap) is not installed"
+    if not probe("bwrap"):
+        return ("bwrap is installed but cannot create user namespaces (e.g. AppArmor "
+                "kernel.apparmor_restrict_unprivileged_userns=1)")
+    return ""
+
+
+def warn_degraded(mode, reason=""):
+    bar = "!" * 78
+    print(f"{bar}\nagentprobe: WARNING DEGRADED SANDBOX (mode={mode}): strong isolation unavailable"
+          f"{' - ' + reason if reason else ''}.\nThe target may read host files and is NOT safely "
+          f"contained. Use a VM/container for hostile servers.\n{bar}", file=sys.stderr)
 
 
 def wrap(argv, mode="auto", allow_paths=(), network=False, workdir=None, canary_dir=None):
@@ -96,18 +143,26 @@ def wrap(argv, mode="auto", allow_paths=(), network=False, workdir=None, canary_
         b += ["--bind", tmp, "/tmp/apwork", "--dir", "/tmp/aphome"]  # nosec B108 — bind mount into bwrap only
         if canary_dir and os.path.isdir(canary_dir):
             b += ["--ro-bind", canary_dir, CANARY_MOUNT]
-        chdir = os.path.realpath(workdir) if workdir else os.path.realpath(os.getcwd())
+        # Only an explicit workdir is bound; never the host cwd (it would leak e.g. /home/<user>).
+        chdir = os.path.realpath(workdir) if workdir else ""
         if chdir not in ("/", "") and os.path.isdir(chdir):
             b += ["--ro-bind", chdir, chdir]
-        # If chdir was hidden by a HIDE tmpfs, the re-bind above restored it.
-        if chdir in ("/", "") or not os.path.isdir(chdir):
-            chdir = "/tmp/apwork"
+        else:
+            chdir = "/tmp/apwork"  # nosec B108
         b += ["--chdir", chdir, "--"]
         return b + list(argv), None, mode, tmp
-    if mode == "unshare" and not network:
-        return ["unshare", "-rn", "--"] + list(argv), cwd, mode, tmp
+    if mode == "unshare" and probe("unshare"):
+        # Degraded: mount namespace tmpfs-hides /home etc. (best effort), no pid ns, / not read-only.
+        hide = [h for h in HIDE if h != "/tmp" and os.path.isdir(h)]  # nosec B108
+        if workdir:
+            wd = os.path.realpath(workdir)
+            hide = [h for h in hide if not (wd + "/").startswith(h + "/")]
+        script = ('while [ "$1" != "--" ]; do mount -t tmpfs none "$1" 2>/dev/null; shift; done; '
+                  'shift; exec "$@"')
+        warn_degraded("unshare", degraded_reason())
+        return (["unshare", "-rm" if network else "-rmn", "--", "/bin/sh", "-c", script, "sh"]
+                + hide + ["--"] + list(argv), cwd, mode, tmp)
     if mode in ("none", "unshare"):
-        print("agentprobe: WARNING no namespace sandbox (bwrap) available; running target with "
-              "rlimits + minimal env only. Use a VM/container for hostile servers.", file=sys.stderr)
+        warn_degraded("none", degraded_reason() or "no namespace support")
         return list(argv), cwd, "none", tmp
     raise ValueError(f"unknown sandbox mode {mode!r}")

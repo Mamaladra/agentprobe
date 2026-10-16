@@ -32,7 +32,8 @@ def scan(target, json_out=None, html_out=None, fail_on=None, min_score=None, qui
                 raise SystemExit("agentprobe: --adaptive needs the agentprobe-pro pack (see README)") from None
             findings.extend(attacker.run_adaptive(_ctx(c, tools),
                                                   attacker.make_provider(adaptive_provider)))
-        meta = {"sandbox": getattr(c, "sandbox_mode", "n/a"), **run_meta,
+        sm = getattr(c, "sandbox_mode", "n/a")
+        meta = {"sandbox": sm, "sandbox_degraded": sm in ("none", "unshare"), **run_meta,
                 "adaptive": adaptive, "server_requests_refused": getattr(c, "server_requests", [])[:20]}
         r = report.build(target, c.server_info, tools, findings, meta)
     finally:

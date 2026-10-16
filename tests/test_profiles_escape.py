@@ -10,7 +10,8 @@ from agentprobe import checks, cli, client, profiles, sandbox
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 FS = os.path.join(ROOT, "demo/fs_server.py")
-HAS_BWRAP = sandbox.detect() == "bwrap"
+HAS_BWRAP = sandbox.probe("bwrap")
+NO_BWRAP_REASON = "DEGRADED sandbox, containment not verifiable: " + (sandbox.degraded_reason() or "n/a")
 
 
 @pytest.fixture()
@@ -105,7 +106,7 @@ def _sbx(code, tmp_path, **kw):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-@pytest.mark.skipif(not HAS_BWRAP, reason="bwrap not installed")
+@pytest.mark.skipif(not HAS_BWRAP, reason=NO_BWRAP_REASON)
 class TestSandboxContainment:
     def test_host_secret_in_tmp_unreadable(self, tmp_path):
         secret = tmp_path / "host_secret.txt"
@@ -225,3 +226,18 @@ def test_rug_pull_falls_back_to_early_relist_without_reconnect(tmp_path):
         assert not [f for f in findings if f.check_id in ("AP000", "AP018")]
     finally:
         meta.get("client", c).close()
+
+
+def test_degraded_mode_reported_and_warned(tmp_path, capsys):
+    argv, cwd, mode, tmp = sandbox.wrap(["true"], "none")
+    assert mode == "none" and sandbox.is_degraded(mode)
+    assert "DEGRADED SANDBOX" in capsys.readouterr().err
+    os.rmdir(tmp)
+
+
+def test_bwrap_does_not_bind_host_cwd():
+    argv, _, _, tmp = sandbox.wrap(["true"], "bwrap")
+    os.rmdir(tmp)
+    cwd = os.path.realpath(os.getcwd())
+    assert ["--ro-bind", cwd, cwd] != argv[argv.index("--chdir") - 3:argv.index("--chdir")]
+    assert argv[argv.index("--chdir") + 1] == "/tmp/apwork"

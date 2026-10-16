@@ -230,7 +230,6 @@ class StdioClient(BaseClient):
                     d = parent
         if workdir:
             allow.append(workdir)
-        allow.append(os.getcwd())
         # Always allow the python stdlib & site-packages under the interpreter prefix
         allow.append(sys.prefix)
         self.argv = list(argv)
