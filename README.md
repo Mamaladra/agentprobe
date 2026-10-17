@@ -48,6 +48,11 @@ Outputs `score` and `grade`, writes a job summary and uploads `grazwall.json` + 
 | AP020 / AP021 | Tool shadowing; exfiltration instructions | static |
 | AP023 | Confused deputy (caller-controlled role/tenant) | static |
 | AP029 | Sandbox-root escape (canary file outside the server root) | live |
+| AP030 | Overspend: caller-set budget, no server-side cap, negative amounts | live |
+| AP031 | AP2: payment tool missing mandate binding / mismatched mandate accepted | mixed |
+| AP032 | AP2: cart substitution (charged amount not bound to the cart) | live |
+| AP033 | AP2: mandate / nonce replay accepted | live |
+| AP034 | AP2: human-not-present overreach (uncapped autonomous charge) | live |
 
 **Grazwall Pro** adds command injection, eval, SSRF, memory poisoning and cross-tenant bleed, indirect
 injection in outputs/resources/prompts, HTTP auth, data-volume and rate-limit probes, the adaptive attacker

@@ -113,7 +113,7 @@ class BaseClient:
 
     def initialize(self):
         r = self.request("initialize", {"protocolVersion": PROTOCOL, "capabilities": {},
-                                         "clientInfo": {"name": "grazwall", "version": "0.3.0"}}, timeout=30)
+                                         "clientInfo": {"name": "grazwall", "version": "0.4.0"}}, timeout=30)
         self.server_info = {k: str(v)[:256] for k, v in _as_dict(r.get("serverInfo")).items()
                             if k in ("name", "version", "title")}
         self.capabilities = _as_dict(r.get("capabilities"))

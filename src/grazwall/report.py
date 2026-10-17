@@ -7,7 +7,7 @@ import re
 
 from .checks import ALL_CHECKS, SEV_WEIGHT
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 MAX_FIELD = 2000
 _CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\U000e0000-\U000e007f]")
 

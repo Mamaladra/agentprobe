@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "grazwall"
-version = "0.3.0"
+version = "0.4.0"
 description = "CI for AI agent security: open-core MCP server scanner (Grazwall) + secure scaffolder (Grazforge)"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"

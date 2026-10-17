@@ -453,8 +453,219 @@ def urllib_quote(s):
     return urllib.parse.quote(s, safe="")
 
 
+_REFUSAL = re.compile(r"\b(deny|denied|exceed|exceeded|over ?budget|limit|insufficient|forbidden|"
+                      r"reject|rejected|not allowed|unauthori[sz]ed|too (large|high|much)|cap\b|refus)", re.IGNORECASE)
 
-ALL_CHECKS = [check_injection_in_descriptions, check_injection_in_schema, check_hidden_unicode, check_secrets_in_metadata, check_overpermissive_naming, check_missing_schema, check_tool_shadowing, check_confused_deputy, check_path_traversal_schema, check_tool_error_leak, check_rug_pull, check_env_canary_leak, check_root_escape]
+
+_SPEND_NAME = r"charge|pay|payment|purchase|buy|checkout|order|transfer|withdraw|spend|invoice|billing|debit"
+
+
+_AMOUNT_PARAM = r"amount|price|total|value|sum|cost|charge|qty|quantity|units"
+
+
+_LIMIT_PARAM = r"^(limit|budget|max|max_?amount|cap|ceiling|allowance|quota)$"
+
+
+def check_overspend(ctx):
+    """Payment-like tools that let a caller exceed a spending limit: caller-controlled
+    budget params, no server-side cap on the amount, or negative-amount (refund) abuse."""
+    out = []
+    for t, _params in targets_for(ctx, _SPEND_NAME, _AMOUNT_PARAM,
+                                 param_types=("integer", "number", "string")):
+        name = t["name"]
+        # Vector A (static): a caller-settable limit/budget parameter == spend by request.
+        for p in _params_by_type(t, ("integer", "number", "string")):
+            if re.search(_LIMIT_PARAM, p, re.IGNORECASE):
+                out.append(Finding("AP030", "Overspend: caller-controlled spending limit", "high",
+                    name, f"Tool '{name}' accepts '{p}'; the caller sets its own budget/limit.",
+                    p, "Enforce the spending limit server-side from the authenticated mandate, "
+                       "never from a tool argument."))
+                break
+        amt = [p for p in _params_by_type(t, ("integer", "number")) if re.search(_AMOUNT_PARAM, p, re.IGNORECASE)]
+        amt = amt or _params_by_type(t, ("integer", "number"))
+        if not amt:
+            continue
+        ap = amt[0]
+        # Vector B (live): an absurdly large charge is accepted without any refusal.
+        text, err = ctx.client.call_tool(name, _fill(t, {ap: 1000000000}))
+        if not err and text and not _REFUSAL.search(text):
+            out.append(Finding("AP030", "Overspend: no server-side spending cap", "critical",
+                name, f"A charge of 1,000,000,000 via '{ap}' was accepted with no limit enforcement.",
+                (text or "")[:80], "Enforce a hard per-session / per-mandate budget server-side; "
+                "reject amounts above the authorized cap."))
+            continue
+        # Vector C (live): negative amount accepted -> refund / balance-inflation abuse.
+        textn, errn = ctx.client.call_tool(name, _fill(t, {ap: -999999}))
+        if not errn and textn and not _REFUSAL.search(textn):
+            out.append(Finding("AP030", "Overspend: negative amount accepted (refund abuse)", "high",
+                name, f"A negative amount via '{ap}' was accepted; enables self-refund / credit abuse.",
+                (textn or "")[:80], "Validate amount > 0 and bound it; treat refunds as a separate "
+                "authorized flow."))
+    return out
+
+
+_MANDATE_PARAM = r"^(intent_?mandate|cart_?mandate|payment_?mandate|mandate(_?id)?|mandate_?token|authorization|authz)$"
+
+
+_CART_PARAM = r"^(cart(_?id)?|items?|sku|product(_?id)?|line_?items?)$"
+
+
+_NONCE_PARAM = r"^(nonce|idempotency_?key|jti|mandate_?nonce|replay_?key)$"
+
+
+_HNP_HINT = r"human[-_ ]?not[-_ ]?present|autonomous (checkout|payment|charge)|no human|unattended (pay|charge)"
+
+
+_MANDATE_HINT = r"mandate|intent mandate|cart mandate|payment mandate|ap2|agent payments"
+
+
+def _mandate_params(t):
+    return [p for p in _params_by_type(t, ("string", "object")) if re.search(_MANDATE_PARAM, p, re.IGNORECASE)]
+
+
+def _cart_params(t):
+    return [p for p in _params_by_type(t, ("string", "object", "array")) if re.search(_CART_PARAM, p, re.IGNORECASE)]
+
+
+def _nonce_params(t):
+    return [p for p in _params_by_type(t, ("string",)) if re.search(_NONCE_PARAM, p, re.IGNORECASE)]
+
+
+def _amount_params(t):
+    amts = [p for p in _params_by_type(t, ("integer", "number")) if re.search(_AMOUNT_PARAM, p, re.IGNORECASE)]
+    return amts or _params_by_type(t, ("integer", "number"))
+
+
+def check_ap2_missing_mandate(ctx):
+    """AP031: spend/checkout tools with no Intent/Cart/Payment Mandate binding, or that
+    accept a charge when a mismatched mandate id is supplied."""
+    out = []
+    for t, _ in targets_for(ctx, _SPEND_NAME, _AMOUNT_PARAM,
+                            param_types=("integer", "number", "string")):
+        name = t["name"]
+        mparams = _mandate_params(t)
+        amts = _amount_params(t)
+        # Vector A (static): payment tool exposes no mandate-binding parameter at all.
+        if not mparams:
+            out.append(Finding(
+                "AP031", "AP2: payment tool missing mandate binding", "high", name,
+                f"Tool '{name}' accepts a spend/charge with no Intent/Cart/Payment Mandate parameter.",
+                ",".join(_params_by_type(t, ("integer", "number", "string")))[:80],
+                "Require a signed Intent Mandate (and Cart/Payment Mandates for HNP flows) "
+                "and bind every charge to that mandate server-side."))
+            continue
+        if not amts:
+            continue
+        ap, mp = amts[0], mparams[0]
+        # Vector B (live): a clearly mismatched / forged mandate is still accepted.
+        text, err = ctx.client.call_tool(name, _fill(t, {ap: 42.0, mp: "forged-mandate-NOT-AUTHORIZED"}))
+        if not err and text and not _REFUSAL.search(text):
+            out.append(Finding(
+                "AP031", "AP2: mismatched mandate accepted", "critical", name,
+                f"Tool '{name}' accepted a charge with a forged/mismatched '{mp}'.",
+                (text or "")[:80],
+                "Verify the mandate signature and subject; reject unknown or mismatched mandates."))
+    return out
+
+
+def check_ap2_cart_substitution(ctx):
+    """AP032: charged item/amount can diverge from the authorized cart (caller sets both)."""
+    out = []
+    for t, _ in targets_for(ctx, rf"{_SPEND_NAME}|{_MANDATE_HINT}|checkout|cart",
+                            _CART_PARAM, param_types=("string", "object", "array", "integer", "number")):
+        name = t["name"]
+        carts = _cart_params(t)
+        amts = _amount_params(t)
+        if not carts or not amts:
+            # Static: amount is caller-set with no cart binding on a payment tool.
+            if amts and re.search(_SPEND_NAME, _all_text(t), re.IGNORECASE) and not carts:
+                # Already covered loosely by missing binding; skip duplicate noise.
+                continue
+            continue
+        cp, ap = carts[0], amts[0]
+        # Live: authorize a cheap cart id but charge a much larger amount.
+        args = _fill(t, {cp: "cart-cheap-sku-A", ap: 999999.0})
+        for mp in _mandate_params(t):
+            args[mp] = "mandate-for-sku-A-only"
+        text, err = ctx.client.call_tool(name, args)
+        if not err and text and not _REFUSAL.search(text):
+            out.append(Finding(
+                "AP032", "AP2: cart substitution / amount unbound from cart", "critical", name,
+                f"Tool '{name}' charged via '{ap}' while cart '{cp}' was a cheap SKU; amount not bound.",
+                (text or "")[:80],
+                "Derive the payable amount from the signed Cart Mandate; never trust a caller amount."))
+    return out
+
+
+def check_ap2_mandate_replay(ctx):
+    """AP033: the same payment mandate / nonce is accepted twice (no replay protection)."""
+    out = []
+    for t, _ in targets_for(ctx, rf"{_SPEND_NAME}|{_MANDATE_HINT}",
+                            _NONCE_PARAM, param_types=("string", "integer", "number")):
+        name = t["name"]
+        nonces = _nonce_params(t) or _mandate_params(t)
+        amts = _amount_params(t)
+        if not nonces:
+            continue
+        np = nonces[0]
+        args = _fill(t, {np: "replay-token-once-only"})
+        if amts:
+            args[amts[0]] = 10.0
+        for mp in _mandate_params(t):
+            if mp not in args:
+                args[mp] = "replay-token-once-only"
+        text1, err1 = ctx.client.call_tool(name, args)
+        if err1 or not text1 or _REFUSAL.search(text1):
+            continue
+        text2, err2 = ctx.client.call_tool(name, args)
+        if not err2 and text2 and not _REFUSAL.search(text2):
+            out.append(Finding(
+                "AP033", "AP2: mandate / nonce replay accepted", "critical", name,
+                f"Tool '{name}' accepted the same '{np}' twice; no replay/idempotency protection.",
+                (text2 or "")[:80],
+                "Track used mandate jti/nonce server-side; reject replays. Prefer single-use Payment Mandates."))
+    return out
+
+
+def check_ap2_hnp_overreach(ctx):
+    """AP034: human-not-present / autonomous charge above a threshold with no mandate caps."""
+    out = []
+    for t in ctx.tools:
+        text = _all_text(t)
+        if not re.search(_HNP_HINT, text, re.IGNORECASE) and not re.search(
+                r"human[-_ ]?not[-_ ]?present", t.get("name") or "", re.IGNORECASE):
+            # Also consider spend tools that advertise autonomy in the name.
+            if not (re.search(_SPEND_NAME, text, re.IGNORECASE)
+                    and re.search(r"auto|unattended|agent[_-]?pay", text, re.IGNORECASE)):
+                continue
+        name = t["name"]
+        amts = _amount_params(t)
+        if not amts:
+            # Static: HNP payment tool with no amount AND no mandate cap surface.
+            if not _mandate_params(t):
+                out.append(Finding(
+                    "AP034", "AP2: human-not-present charge with no mandate caps", "high", name,
+                    f"Tool '{name}' advertises human-not-present/autonomous payment without mandate cap params.",
+                    (t.get("description") or "")[:80],
+                    "HNP flows MUST carry a Payment Mandate with a hard cap enforced server-side."))
+            continue
+        ap = amts[0]
+        args = _fill(t, {ap: 500000.0})
+        for mp in _mandate_params(t):
+            args[mp] = "hnp-uncapped"
+        text_out, err = ctx.client.call_tool(name, args)
+        if not err and text_out and not _REFUSAL.search(text_out):
+            out.append(Finding(
+                "AP034", "AP2: human-not-present overreach (uncapped autonomous charge)", "critical", name,
+                f"Autonomous/HNP tool '{name}' accepted a 500,000 charge with no mandate-cap refusal.",
+                (text_out or "")[:80],
+                "Enforce Payment Mandate max_amount for HNP; refuse charges above the signed cap."))
+    return out
+
+
+
+ALL_CHECKS = [check_injection_in_descriptions, check_injection_in_schema, check_hidden_unicode, check_secrets_in_metadata, check_overpermissive_naming, check_missing_schema, check_tool_shadowing, check_confused_deputy, check_path_traversal_schema, check_tool_error_leak, check_rug_pull, check_env_canary_leak, check_root_escape,
+              check_overspend, check_ap2_missing_mandate, check_ap2_cart_substitution, check_ap2_mandate_replay, check_ap2_hnp_overreach]
 
 
 def load_packs():
