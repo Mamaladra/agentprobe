@@ -3,9 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentprobe"
+name = "grazwall"
 version = "0.3.0"
-description = "CI for AI agent security: open-core MCP server scanner (AgentProbe) + secure scaffolder (MCPForge)"
+description = "CI for AI agent security: open-core MCP server scanner (Grazwall) + secure scaffolder (Grazforge)"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
 dependencies = []
@@ -16,14 +16,14 @@ dependencies = []
 dev = ["pytest>=7", "bandit>=1.7", "ruff>=0.4"]
 
 [project.scripts]
-agentprobe = "agentprobe.cli:agentprobe_main"
-mcpforge = "agentprobe.forge:main"
+grazwall = "grazwall.cli:grazwall_main"
+grazforge = "grazwall.forge:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-agentprobe = ["templates/*"]
+grazwall = ["templates/*"]
 
 [tool.ruff]
 line-length = 120

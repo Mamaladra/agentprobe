@@ -11,7 +11,7 @@ SEV_ORDER = ["info", "low", "medium", "high", "critical"]
 def scan(target, json_out=None, html_out=None, fail_on=None, min_score=None, quiet=False,
          sandbox_mode="auto", network=False, adaptive=False, adaptive_provider="rule",
          allow_paths=None, workdir=None, profile="auto"):
-    env = {"AGENTPROBE_CANARY": checks.CANARY}
+    env = {"GRAZWALL_CANARY": checks.CANARY}
     # Never leak real secrets into the target: only our canary + PATH/LANG etc. via sandbox.
     kw = {}
     if not target.startswith(("http://", "https://")):
@@ -27,9 +27,9 @@ def scan(target, json_out=None, html_out=None, fail_on=None, min_score=None, qui
         c = run_meta.pop("client", c)
         if adaptive:
             try:
-                from agentprobe_pro import attacker  # commercial pack
+                from grazwall_pro import attacker  # commercial pack
             except ImportError:
-                raise SystemExit("agentprobe: --adaptive needs the agentprobe-pro pack (see README)") from None
+                raise SystemExit("grazwall: --adaptive needs the grazwall-pro pack (see README)") from None
             findings.extend(attacker.run_adaptive(_ctx(c, tools),
                                                   attacker.make_provider(adaptive_provider)))
         sm = getattr(c, "sandbox_mode", "n/a")
@@ -45,7 +45,7 @@ def scan(target, json_out=None, html_out=None, fail_on=None, min_score=None, qui
         with open(html_out, "w") as f:
             f.write(report.to_html(r))
     if not quiet:
-        print(f"AgentProbe: {r['server'].get('name','?')}  tools={r['tool_count']}  "
+        print(f"Grazwall: {r['server'].get('name','?')}  tools={r['tool_count']}  "
               f"score={r['score']}/100  grade={r['grade']}  sandbox={r['meta'].get('sandbox')}  "
               f"profile={','.join(r['meta'].get('profiles') or []) or 'none'} ({r['meta'].get('profile_source')})")
         for f in r["findings"]:
@@ -67,8 +67,8 @@ def _ctx(c, tools):
     return ctx
 
 
-def agentprobe_main(argv=None):
-    ap = argparse.ArgumentParser(prog="agentprobe", description="Red-team MCP servers & agent memory")
+def grazwall_main(argv=None):
+    ap = argparse.ArgumentParser(prog="grazwall", description="Red-team MCP servers & agent memory")
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("scan", help="scan an MCP server: a stdio command (quoted) or an http(s) URL")
     s.add_argument("target")
@@ -79,9 +79,9 @@ def agentprobe_main(argv=None):
     s.add_argument("--sandbox", choices=["auto", "bwrap", "unshare", "none"], default="auto",
                    help="sandbox for stdio targets (default: auto = bwrap if available)")
     s.add_argument("--network", action="store_true", help="allow network inside the sandbox (off by default)")
-    s.add_argument("--adaptive", action="store_true", help="adaptive attacker (requires agentprobe-pro)")
+    s.add_argument("--adaptive", action="store_true", help="adaptive attacker (requires grazwall-pro)")
     s.add_argument("--adaptive-provider", choices=["rule", "local-llm"], default="rule",
-                   help="rule (offline) or local-llm (localhost only; set AGENTPROBE_LLM_URL)")
+                   help="rule (offline) or local-llm (localhost only; set GRAZWALL_LLM_URL)")
     s.add_argument("--allow-path", action="append", default=[], help="extra read-only path bind into sandbox")
     s.add_argument("--profile", default="auto",
                    help="capability profile(s): auto (default, detect), none, or comma list of "
@@ -102,4 +102,4 @@ def agentprobe_main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(agentprobe_main())
+    sys.exit(grazwall_main())

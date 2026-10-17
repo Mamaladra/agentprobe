@@ -1,6 +1,6 @@
-name: "AgentProbe MCP Security Scan"
+name: "Grazwall MCP Security Scan"
 description: "CI for AI agent security: red-team your MCP server in a sandbox and fail the build on prompt injection, path traversal, root escape and secret leaks."
-author: "AgentProbe"
+author: "Grazwall"
 branding:
   icon: "shield"
   color: "purple"
@@ -25,9 +25,9 @@ inputs:
     required: false
     default: "auto"
   version:
-    description: "AgentProbe version or pip spec to install"
+    description: "Optional pip spec to install instead of this action's own checkout (Grazwall is not on PyPI yet)"
     required: false
-    default: "agentprobe"
+    default: ""
 outputs:
   score:
     description: "Security score 0-100"
@@ -44,11 +44,12 @@ runs:
         if ! command -v bwrap >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap; fi
         # Ubuntu 24.04 runners restrict unprivileged user namespaces via AppArmor
         sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 >/dev/null 2>&1 || true
-    - name: Install AgentProbe
+    - name: Install Grazwall
       shell: bash
       env:
         AP_VERSION: ${{ inputs.version }}
-      run: python3 -m pip install --quiet "$AP_VERSION"
+        AP_SELF: ${{ github.action_path }}
+      run: python3 -m pip install --quiet "${AP_VERSION:-$AP_SELF}"
     - name: Scan
       id: scan
       shell: bash
@@ -60,15 +61,15 @@ runs:
         AP_SANDBOX: ${{ inputs.sandbox }}
       run: |
         set +e
-        agentprobe scan "$AP_TARGET" --profile "$AP_PROFILE" --sandbox "$AP_SANDBOX" \
-          --fail-on "$AP_FAIL_ON" --min-score "$AP_MIN_SCORE" --json agentprobe.json --html agentprobe.html
+        grazwall scan "$AP_TARGET" --profile "$AP_PROFILE" --sandbox "$AP_SANDBOX" \
+          --fail-on "$AP_FAIL_ON" --min-score "$AP_MIN_SCORE" --json grazwall.json --html grazwall.html
         code=$?
-        python3 -c "import json;r=json.load(open('agentprobe.json'));print(f\"score={r['score']}\");print(f\"grade={r['grade']}\")" >> "$GITHUB_OUTPUT"
-        python3 -c "import json;r=json.load(open('agentprobe.json'));c=r['counts'];print(f\"### AgentProbe: grade {r['grade']} ({r['score']}/100)\n\ncritical {c['critical']} · high {c['high']} · medium {c['medium']} · low {c['low']}\")" >> "$GITHUB_STEP_SUMMARY"
+        python3 -c "import json;r=json.load(open('grazwall.json'));print(f\"score={r['score']}\");print(f\"grade={r['grade']}\")" >> "$GITHUB_OUTPUT"
+        python3 -c "import json;r=json.load(open('grazwall.json'));c=r['counts'];print(f\"### Grazwall: grade {r['grade']} ({r['score']}/100)\n\ncritical {c['critical']} · high {c['high']} · medium {c['medium']} · low {c['low']}\")" >> "$GITHUB_STEP_SUMMARY"
         exit $code
     - name: Upload report
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: agentprobe-report
-        path: agentprobe.*
+        name: grazwall-report
+        path: grazwall.*

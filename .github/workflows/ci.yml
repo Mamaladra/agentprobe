@@ -18,8 +18,8 @@ jobs:
           bwrap --ro-bind / / --unshare-user --unshare-pid --unshare-net --tmpfs /home -- sh -c 'test -z "$(ls -A /home)"'
       - run: pip install -e ".[dev]"
       - run: pytest -q
-      - run: ruff check src/agentprobe tests
-      - run: bandit -q -r src/agentprobe -c bandit.yaml -ll
+      - run: ruff check src/grazwall tests
+      - run: bandit -q -r src/grazwall -c bandit.yaml -ll
       - run: pipx run pip-audit
   dogfood:
     runs-on: ubuntu-latest

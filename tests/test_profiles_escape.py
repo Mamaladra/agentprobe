@@ -6,7 +6,7 @@ import textwrap
 
 import pytest
 
-from agentprobe import checks, cli, client, profiles, sandbox
+from grazwall import checks, cli, client, profiles, sandbox
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 FS = os.path.join(ROOT, "demo/fs_server.py")
@@ -148,14 +148,14 @@ class TestSandboxContainment:
     def test_writes_do_not_land_on_host(self, tmp_path):
         target = tmp_path / "written_by_target"
         p = _sbx(f"""
-            for path in [{str(target)!r}, '/etc/agentprobe_pwn', '/usr/agentprobe_pwn']:
+            for path in [{str(target)!r}, '/etc/grazwall_pwn', '/usr/grazwall_pwn']:
                 try:
                     open(path, 'w').write('x'); print('WROTE', path)
                 except OSError as e:
                     print('DENIED', type(e).__name__)
         """, tmp_path)
-        assert not target.exists() and not os.path.exists("/etc/agentprobe_pwn")
-        assert not os.path.exists("/usr/agentprobe_pwn"), p.stdout
+        assert not target.exists() and not os.path.exists("/etc/grazwall_pwn")
+        assert not os.path.exists("/usr/grazwall_pwn"), p.stdout
 
     def test_canary_mount_readonly(self, tmp_path):
         cd = sandbox.make_canary("TOK")

@@ -19,12 +19,12 @@ HIDE = ("/home", "/root", "/tmp", "/run", "/var", "/workspace", "/mnt", "/media"
 
 
 CANARY_MOUNT = "/tmp/apcanary"  # nosec B108 — in-sandbox mount point only
-CANARY_FILE = "agentprobe-escape-canary.txt"
+CANARY_FILE = "grazwall-escape-canary.txt"
 
 
 def make_canary(token):
     """Create a host tempdir with a canary file the target must NOT be able to read via its tools."""
-    d = tempfile.mkdtemp(prefix="agentprobe-canary-")
+    d = tempfile.mkdtemp(prefix="grazwall-canary-")
     with open(os.path.join(d, CANARY_FILE), "w") as f:
         f.write(token + "\n")
     return d
@@ -112,7 +112,7 @@ def degraded_reason():
 
 def warn_degraded(mode, reason=""):
     bar = "!" * 78
-    print(f"{bar}\nagentprobe: WARNING DEGRADED SANDBOX (mode={mode}): strong isolation unavailable"
+    print(f"{bar}\ngrazwall: WARNING DEGRADED SANDBOX (mode={mode}): strong isolation unavailable"
           f"{' - ' + reason if reason else ''}.\nThe target may read host files and is NOT safely "
           f"contained. Use a VM/container for hostile servers.\n{bar}", file=sys.stderr)
 
@@ -121,13 +121,13 @@ def wrap(argv, mode="auto", allow_paths=(), network=False, workdir=None, canary_
     """Return (argv, cwd, mode_used, tempdir). allow_paths are bound read-only (code/deps)."""
     if mode == "auto":
         mode = detect()
-    tmp = tempfile.mkdtemp(prefix="agentprobe-sbx-")
+    tmp = tempfile.mkdtemp(prefix="grazwall-sbx-")
     os.chmod(tmp, 0o700)
     cwd = workdir or tmp
     if mode == "bwrap":
         b = [shutil.which("bwrap"), "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
              "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-uts", "--unshare-cgroup-try",
-             "--die-with-parent", "--new-session", "--hostname", "agentprobe-sbx"]
+             "--die-with-parent", "--new-session", "--hostname", "grazwall-sbx"]
         if not network:
             b.append("--unshare-net")
         for h in HIDE:

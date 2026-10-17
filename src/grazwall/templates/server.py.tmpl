@@ -1,10 +1,10 @@
-"""{name}: MCP server scaffolded by MCPForge. Run: python server.py (stdio)."""
+"""{name}: MCP server scaffolded by Grazforge. Run: python server.py (stdio)."""
 from mcp_runtime import Server
 
 srv = Server("{name}", "0.1.0")
 
 def obj(props, required):
-    # strict schemas: AgentProbe flags permissive ones
+    # strict schemas: Grazwall flags permissive ones
     return {{"type": "object", "properties": props, "required": required, "additionalProperties": False}}
 
 @srv.tool("Say hello to someone by name.", obj({{"name": {{"type": "string", "maxLength": 64}}}}, ["name"]))

@@ -1,7 +1,7 @@
-"""AgentProbe open-core checks (Apache-2.0): static checks + basic live probes.
+"""Grazwall open-core checks (Apache-2.0): static checks + basic live probes.
 
 Additional packs (advanced live probes, adaptive attacker) register via the
-`agentprobe.packs` entry-point group: each entry point returns a list of check functions.
+`grazwall.packs` entry-point group: each entry point returns a list of check functions.
 """
 import re
 
@@ -224,7 +224,7 @@ def run_all(client, profiles="auto", reconnect=None, meta=None, max_restarts=8):
     return findings, ctx.tools
 
 
-CANARY = "sk-aprobecanary0000000000000000"
+CANARY = "sk-grazwallcanary0000000000000000"
 
 
 def check_rug_pull(ctx):
@@ -252,7 +252,7 @@ def check_env_canary_leak(ctx):
     out = []
     for t in _find_tools(ctx, r"env|config|debug|secret|setting|info|status"):
         sp = _string_params(t)
-        for args in ({}, {sp[0]: "AGENTPROBE_CANARY"} if sp else {}, {sp[0]: "*"} if sp else {}):
+        for args in ({}, {sp[0]: "GRAZWALL_CANARY"} if sp else {}, {sp[0]: "*"} if sp else {}):
             text, err = ctx.client.call_tool(t["name"], args)
             if CANARY in (text or ""):
                 out.append(Finding("AP019", "Environment secret exfiltration", "critical", t["name"],
@@ -392,7 +392,7 @@ def check_path_traversal_schema(ctx):
     return out
 
 
-ESCAPE_TOKEN = "APROBE_ESCAPE_CANARY_3141"  # noqa: S105  # nosec B105 — probe canary
+ESCAPE_TOKEN = "GRAZWALL_ESCAPE_CANARY_3141"  # noqa: S105  # nosec B105 — probe canary
 
 
 def _roots_hint(ctx):
@@ -458,10 +458,10 @@ ALL_CHECKS = [check_injection_in_descriptions, check_injection_in_schema, check_
 
 
 def load_packs():
-    """Load optional check packs (e.g. commercial `agentprobe-pro`) from entry points."""
+    """Load optional check packs (e.g. commercial `grazwall-pro`) from entry points."""
     try:
         from importlib.metadata import entry_points
-        eps = entry_points(group="agentprobe.packs")
+        eps = entry_points(group="grazwall.packs")
     except Exception:
         return []
     out = []

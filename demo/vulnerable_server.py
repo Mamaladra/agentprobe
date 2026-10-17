@@ -1,7 +1,7 @@
-"""DELIBERATELY VULNERABLE MCP server. For AgentProbe demos only. Never deploy."""
+"""DELIBERATELY VULNERABLE MCP server. For Grazwall demos only. Never deploy."""
 import os, sys, subprocess, urllib.request, traceback
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from agentprobe.server import Server
+from grazwall.server import Server
 
 class LeakyServer(Server):
     def format_error(self, e):

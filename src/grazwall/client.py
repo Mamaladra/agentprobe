@@ -113,7 +113,7 @@ class BaseClient:
 
     def initialize(self):
         r = self.request("initialize", {"protocolVersion": PROTOCOL, "capabilities": {},
-                                         "clientInfo": {"name": "agentprobe", "version": "0.3.0"}}, timeout=30)
+                                         "clientInfo": {"name": "grazwall", "version": "0.3.0"}}, timeout=30)
         self.server_info = {k: str(v)[:256] for k, v in _as_dict(r.get("serverInfo")).items()
                             if k in ("name", "version", "title")}
         self.capabilities = _as_dict(r.get("capabilities"))
@@ -281,7 +281,7 @@ class StdioClient(BaseClient):
                     self.server_requests.append(str(m.get("method"))[:100])
                     try:
                         self._write({"jsonrpc": "2.0", "id": m["id"] if isinstance(m["id"], (int, str)) else None,
-                                     "error": {"code": -32601, "message": "refused by agentprobe"}})
+                                     "error": {"code": -32601, "message": "refused by grazwall"}})
                     except (OSError, ValueError, MCPError):
                         pass
                 continue
