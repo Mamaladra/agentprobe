@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from agentprobe import client
+from grazwall import client
 
 # Anything that is NOT a valid JSON object must raise MCPError (or be accepted only if it is a dict).
 MALFORMED = [

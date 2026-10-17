@@ -1,4 +1,4 @@
-"""Open-core behaviour: static + basic live checks, CI gate, reports, MCPForge."""
+"""Open-core behaviour: static + basic live checks, CI gate, reports, Grazforge."""
 import json
 import os
 import subprocess
@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from agentprobe import checks, cli, forge, sandbox
+from grazwall import checks, cli, forge, sandbox
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 VULN = f"{sys.executable} {os.path.join(ROOT, 'demo/vulnerable_server.py')}"
@@ -41,12 +41,12 @@ def test_reports(tmp_path):
 
 
 def test_cli_and_adaptive_requires_pro():
-    p = subprocess.run([sys.executable, "-m", "agentprobe", "scan", SAFE, "--sandbox", MODE, "--fail-on", "high"],
+    p = subprocess.run([sys.executable, "-m", "grazwall", "scan", SAFE, "--sandbox", MODE, "--fail-on", "high"],
                        capture_output=True, text=True, check=False)
     assert p.returncode == 0 and "grade=A" in p.stdout
-    p = subprocess.run([sys.executable, "-m", "agentprobe", "scan", SAFE, "--sandbox", MODE, "--adaptive"],
+    p = subprocess.run([sys.executable, "-m", "grazwall", "scan", SAFE, "--sandbox", MODE, "--adaptive"],
                        capture_output=True, text=True, check=False)
-    assert p.returncode != 0 and "agentprobe-pro" in (p.stdout + p.stderr)
+    assert p.returncode != 0 and "grazwall-pro" in (p.stdout + p.stderr)
 
 
 def test_core_has_no_private_code():

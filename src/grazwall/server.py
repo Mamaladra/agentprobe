@@ -1,4 +1,4 @@
-"""Tiny dependency-free MCP stdio server framework (used by demos and mcpforge templates)."""
+"""Tiny dependency-free MCP stdio server framework (used by demos and grazforge templates)."""
 import json
 import sys
 

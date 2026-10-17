@@ -3,7 +3,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
-agentprobe.json
-agentprobe.html
+grazwall.json
+grazwall.html
 dist/
 build/

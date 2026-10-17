@@ -1,4 +1,4 @@
-# Contributing to AgentProbe
+# Contributing to Grazwall
 
 Thanks for helping make agents safer.
 
@@ -9,8 +9,8 @@ Thanks for helping make agents safer.
 - **No remote LLM or network calls** from the scanner. Probes must work with network off.
 
 ## Adding a check
-1. Write `check_xxx(ctx) -> list[Finding]` in `src/agentprobe/checks.py` and add it to `ALL_CHECKS`.
-2. Use the next free `APxxx` id and include a one-line docstring (shown by `agentprobe checks`).
+1. Write `check_xxx(ctx) -> list[Finding]` in `src/grazwall/checks.py` and add it to `ALL_CHECKS`.
+2. Use the next free `APxxx` id and include a one-line docstring (shown by `grazwall checks`).
 3. Prove it on a demo server: a true positive on `demo/vulnerable_server.py` (or a new demo) **and** no finding
    on `demo/safe_server.py`. False positives count as bugs.
 4. Live probes must be non-destructive. Skip tools named delete/drop/transfer/exec unless that is the point of the check.
@@ -19,8 +19,8 @@ Thanks for helping make agents safer.
 ## Before opening a PR
 ```bash
 pytest -q
-ruff check src/agentprobe tests
-bandit -r src/agentprobe -c bandit.yaml -ll
+ruff check src/grazwall tests
+bandit -r src/grazwall -c bandit.yaml -ll
 pipx run pip-audit
 ```
 

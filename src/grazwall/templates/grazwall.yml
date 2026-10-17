@@ -1,0 +1,15 @@
+# GitHub Action: Grazwall CI gate. Fails the build on high/critical findings.
+name: grazwall
+on: [push, pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install grazwall   # pre-release: pip install git+<repo-url>
+      - run: grazwall scan "python server.py" --json grazwall.json --html grazwall.html --fail-on high --min-score 75
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: grazwall-report, path: "grazwall.*"}

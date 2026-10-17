@@ -3,7 +3,7 @@ non-normalized join, follows symlinks); default = realpath + commonpath containm
 Usage: fs_server.py ROOT [--naive]"""
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from agentprobe.server import Server
+from grazwall.server import Server
 
 ROOT = os.path.realpath(sys.argv[1])
 NAIVE = "--naive" in sys.argv

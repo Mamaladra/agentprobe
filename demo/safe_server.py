@@ -1,7 +1,7 @@
 """Hardened counterpart of vulnerable_server.py: same features, least privilege."""
 import os, sys, hmac
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from agentprobe.server import Server
+from grazwall.server import Server
 
 srv = Server("safe-notes", "1.0.0")
 DOCS = {"readme": "Welcome to safe-notes.", "faq": "Ask us anything."}
